@@ -1,79 +1,57 @@
 
 #include <Arduino.h>
 
-const int encoderPinA = 5; // S1
-const int encoderPinB = 4; // S2
-const int keyPin = 0;      // KEY
+const byte pin1 = 5; // Connected to DT on KY-040
+const byte pin2 = 4; // Connected to CLK on KY-040
+int state = 0;
+int counter = 0;
 
-volatile int encoderPos = 0;
-volatile bool A_set = false;
-volatile bool B_set = false;
-unsigned long lastDebounceTime = 0;
-unsigned long debounceDelay = 50; // Debounce-Zeit für den Button
-bool buttonState = HIGH;          // Der aktuelle Zustand des Button
-bool lastButtonState = HIGH;      // Der letzte bekannte Zustand des Button
+const unsigned char ttable[7][4] = {
+    {0, 2, 4, 0},
+    {3, 0, 1, 0 | 16},
+    {3, 2, 0, 0},
+    {3, 2, 1, 0},
+    {6, 0, 4, 0},
+    {6, 5, 0, 0 | 32},
+    {6, 5, 4, 0},
+};
 
-void ICACHE_RAM_ATTR handleEncoder() {
-  bool A = digitalRead(encoderPinA);
-  bool B = digitalRead(encoderPinB);
-
-  if (A && !A_set) {
-    if (B) {
-      encoderPos++;
-    } else {
-      encoderPos--;
-    }
-  }
-  A_set = A;
-
-  if (B && !B_set) {
-    if (A) {
-      encoderPos--;
-    } else {
-      encoderPos++;
-    }
-  }
-  B_set = B;
+void setup()
+{
+  pinMode(pin1, INPUT_PULLUP);
+  pinMode(pin2, INPUT_PULLUP);
+  Serial.begin(9600);
 }
 
-void setup() {
-  Serial.begin(115200);
+void loop()
+{
 
-  pinMode(encoderPinA, INPUT_PULLUP);
-  pinMode(encoderPinB, INPUT_PULLUP);
-  pinMode(keyPin, INPUT_PULLUP);
+  unsigned char result = process();
 
-  attachInterrupt(digitalPinToInterrupt(encoderPinA), handleEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(encoderPinB), handleEncoder, CHANGE);
+  // Clockwise rotation.
+  if (result == 16)
+  {
+    counter++;
+    Serial.println(counter);
+  }
+
+  // Counter clockwise rotation.
+  else if (result == 32)
+  {
+    counter--;
+    Serial.println(counter);
+  }
 }
 
-void loop() {
-  static int lastEncoderPos = 0;
-  noInterrupts();
-  int pos = encoderPos;
-  interrupts();
+unsigned char process()
+{
 
-  if (pos != lastEncoderPos) {
-    Serial.print("Encoder Position: ");
-    Serial.println(pos);
-    lastEncoderPos = pos;
-  }
+  // Grab state of input pins.
+  unsigned char pinstate = (digitalRead(pin2) << 1) | digitalRead(pin1);
 
-  // Entprellung für den Button
-  bool reading = digitalRead(keyPin);
-  if (reading != lastButtonState) {
-    lastDebounceTime = millis();
-  }
+  // Determine new state from the pins and state table.
+  state = ttable[state & 0xf][pinstate];
 
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != buttonState) {
-      buttonState = reading;
-      if (buttonState == LOW) {
-        Serial.println("Key Pressed");
-      }
-    }
-  }
-  lastButtonState = reading;
-
-  delay(5); // Kleine Verzögerung zur Stabilisierung der Messungen
+  // Return emit bits, ie the generated event.
+  return state & 48;
 }
