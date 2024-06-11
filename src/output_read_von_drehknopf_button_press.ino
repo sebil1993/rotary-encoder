@@ -1,8 +1,8 @@
 
 #include <Arduino.h>
 
-const int encoderPinA = 4; // S1
-const int encoderPinB = 5; // S2
+const int encoderPinA = 5; // S1
+const int encoderPinB = 4; // S2
 const int keyPin = 0;      // KEY
 
 volatile int encoderPos = 0;
